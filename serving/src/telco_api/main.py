@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from telco_api.settings import settings
-from telco_api.registry import registry
-from telco_api.routers import predict
+from serving.src.telco_api.settings import settings
+from serving.src.telco_api.registry import registry
+from serving.src.telco_api.routers import predict
 
 app = FastAPI(title=settings.app_name)
 

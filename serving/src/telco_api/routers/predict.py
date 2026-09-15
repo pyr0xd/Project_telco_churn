@@ -1,8 +1,7 @@
 from fastapi import APIRouter
 import pandas as pd
-from telco_api.registry import registry
+from serving.src.telco_api.registry import registry
 
-# This tells FastAPI this is an endpoint!
 router = APIRouter(prefix="/predict", tags=["Inference"])
 
 @router.post("/")
