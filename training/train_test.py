@@ -8,7 +8,7 @@ from sklearn.pipeline import Pipeline
 import joblib
 import os
 
-from dataset_load import X_train, y_train, X_val, y_val, preprocessor
+from .dataset_load import X_train, y_train, X_val, y_val, preprocessor
 
 def run_training(selected_models=None):
     mlflow.set_experiment("basemodel_test")
@@ -17,17 +17,15 @@ def run_training(selected_models=None):
         "LogisticRegression": {
             "model": LogisticRegression(max_iter=1000, random_state=42),
             "params": {
-                'C': [0.01, 0.1, 1.0, 10.0],
-                'penalty': ['l1', 'l2'],
-                'solver': ['liblinear'] 
+                'model__C': [0.01, 0.1, 1.0, 10.0]
             }
         },
         "RandomForest": {
             "model": RandomForestClassifier(random_state=42),
             "params": {
-                'n_estimators': [50, 100, 200],
-                'max_depth': [None, 5, 10],
-                'min_samples_split': [2, 5]
+                'model__n_estimators': [50, 100, 200],
+                'model__max_depth': [None, 5, 10],
+                'model__min_samples_split': [2, 5]
             }
         }
     }
