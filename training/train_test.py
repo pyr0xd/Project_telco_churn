@@ -4,7 +4,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import accuracy_score, f1_score
+from sklearn.pipeline import Pipeline
 import joblib
+
+from dataset_load import X_train, y_train, X_val, y_val, preprocessor
 
 mlflow.set_experiment("basemodel_test")
 
@@ -32,9 +35,13 @@ for name, config in models_to_tune.items():
         
         mlflow.log_param("model_type", name)
         
+        pipeline = Pipeline([
+            ('preprocessing', preprocessor),
+            ('model', config['model'])
+        ])
 
         grid_search = GridSearchCV(
-            estimator=config["model"],
+            estimator=pipeline,
             param_grid=config["params"],
             cv=5,
             scoring='f1',
@@ -44,7 +51,6 @@ for name, config in models_to_tune.items():
 
         grid_search.fit(X_train, y_train)
         
-
         best_model = grid_search.best_estimator_
         best_params = grid_search.best_params_
         
