@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-import numpy as np  
+import joblib
 from dotenv import load_dotenv
 from supabase import create_client
 from sklearn.compose import ColumnTransformer
@@ -73,5 +73,4 @@ full_pipeline = Pipeline([
     ('model', LogisticRegression(max_iter=1000))
 ])
 full_pipeline.fit(X_train, y_train)
-
 
