@@ -23,6 +23,15 @@ def create_parser():
         default=5, 
         help="Previous runs (standard: 5)"
     )
+    
+    eval_parser = subparsers.add_parser("trainval", help="Train model on full train+val and evaluate on test set")
+    eval_parser.add_argument(
+        "--model", 
+        type=str, 
+        required=True, 
+        choices=["LogisticRegression", "RandomForest"],
+        help="Which model to train for production and evaluate"
+    )
 
     subparsers.add_parser("fetch", help="Fetch dataset from database")
 
@@ -93,6 +102,57 @@ def main():
                         
                 except Exception as e:
                     print(f"Could not find MLflow history: {e}\n")
+            
+            elif args.command == "eval":
+                import os
+                import glob
+                
+                baseline_dir = "artifacts/baseline"
+                if not os.path.exists(baseline_dir):
+                    print("no basemodels found.\n")
+                    continue
+                    
+                model_files = glob.glob(os.path.join(baseline_dir, "*_best.joblib"))
+                
+                if not model_files:
+                    print("no model files (*_best.joblib) found.\n")
+                    continue
+                
+                available_models = []
+                print("\nAvaliable baseline models:")
+                print("-" * 30)
+                for i, path in enumerate(model_files, 1):
+                    filename = os.path.basename(path)
+                    model_name = filename.replace("_best.joblib", "").capitalize()
+                    if "logistic" in model_name.lower():
+                        model_name = "LogisticRegression"
+                    elif "random" in model_name.lower():
+                        model_name = "RandomForest"
+                        
+                    available_models.append((i, model_name, path))
+                    print(f"[{i}] {model_name} (Fil: {filename})")
+                print("-" * 30)
+                
+                choice = input("Select the number of the ,odel you would like to train: ").strip()
+                
+                try:
+                    selected_idx = int(choice) - 1
+                    chosen_model_name = available_models[selected_idx][1]
+                    
+                    print(f"Model: {chosen_model_name}. is in training")
+                    
+                    from training.train_production import run_production_training
+                    
+                    default_params = {}
+                    if chosen_model_name == "LogisticRegression":
+                        default_params = {'C': 10.0}
+                    elif chosen_model_name == "RandomForest":
+                        default_params = {'n_estimators': 50, 'max_depth': 10}
+                        
+                    run_production_training(model_name=chosen_model_name, custom_params=default_params)
+                    
+                except (ValueError, IndexError):
+                    print("Error.\n")
             
         except SystemExit:
             continue
