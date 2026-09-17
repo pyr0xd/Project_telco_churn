@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-import joblib
+from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client
 from sklearn.compose import ColumnTransformer
@@ -67,10 +67,15 @@ preprocessor = ColumnTransformer([
     ('cat', categorical_pipeline, categorical_cols)
 ])
 
-# Slå ihop preprocessing + modell i en pipeline så allt körs i en enda .fit()
-full_pipeline = Pipeline([
-    ('preprocessing', preprocessor),
-    ('model', LogisticRegression(max_iter=1000))
-])
-full_pipeline.fit(X_train, y_train)
+CLEANED_DATA_PATH = Path('artifacts/processed/cleaned_telco.pkl')
 
+if CLEANED_DATA_PATH.exists():
+    df = pd.read_pickle(CLEANED_DATA_PATH)
+else:
+    df = fetch_dataset()
+    df = df.drop(columns=['customerID'])
+    df['TotalCharges'] = pd.to_numeric(df['TotalCharges'], errors='coerce')
+    df['Churn'] = (df['Churn'] == 'Yes').astype(int)
+
+    CLEANED_DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    df.to_pickle(CLEANED_DATA_PATH)
