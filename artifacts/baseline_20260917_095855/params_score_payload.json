@@ -1,0 +1,18 @@
+{
+    "logisticregression": {
+        "accuracy": 0.7977288857345636,
+        "f1_score": 0.583941605839416,
+        "best_params": {
+            "C": 10.0
+        }
+    },
+    "randomforest": {
+        "accuracy": 0.7899219304471257,
+        "f1_score": 0.5555555555555556,
+        "best_params": {
+            "max_depth": 10,
+            "min_samples_split": 2,
+            "n_estimators": 50
+        }
+    }
+}
