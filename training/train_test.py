@@ -104,7 +104,7 @@ def run_training(selected_models=None):
             artifact_version=f"baseline_{timestamp}",
             notes="GridSearch baseline training on train/val split",
         )
-        print(f"Immutable artifacts and manifest exported to: {saved_path}")
+        print(f"models and manifest exported to: {saved_path}")
 
 if __name__ == "__main__":
     run_training()

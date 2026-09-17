@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "artifact_version": "baseline_20260917_095228",
+  "created_at": "2026-09-17T07:52:28.160855Z",
+  "library_versions": {
+    "scikit-learn": "1.9.1",
+    "pandas": "3.0.5",
+    "numpy": "2.5.3",
+    "joblib": "1.6.0",
+    "mlflow": "3.16.0"
+  },
+  "payload_file": "telco_metrics_payload.json",
+  "models": {
+    "logisticregression": "logisticregression_best.joblib",
+    "randomforest": "randomforest_best.joblib"
+  },
+  "diagnostics": {},
+  "notes": "GridSearch baseline training on train/val split"
+}
