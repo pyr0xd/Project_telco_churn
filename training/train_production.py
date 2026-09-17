@@ -1,20 +1,19 @@
-import os
+from datetime import datetime
 import pandas as pd
-import joblib
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from datetime import datetime
 
-from .dataset_load import X_train, y_train, X_val, y_val, X_test, y_test, preprocessor
+from .dataset_load import get_data_splits
 from .export import export_artifacts
-from .manifest import model_ke
+from .manifest import model_key
 
 def run_production_training(model_name: str, custom_params: dict = None):
-    
     print(f"Preparing production training for {model_name}...")
 
+    # Hämta split och preprocessor via funktionsmönstret
+    X_train, y_train, X_val, y_val, X_test, y_test, preprocessor = get_data_splits()
     X_full = pd.concat([X_train, X_val])
     y_full = pd.concat([y_train, y_val])
 
