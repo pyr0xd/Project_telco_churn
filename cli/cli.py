@@ -7,7 +7,7 @@ import json
 # python -m cli.cli
 
 def create_parser():
-    """Create all parsers."""
+    #Create all parsers
     parser = argparse.ArgumentParser(description="CLI tool for model training interface", prog="")
     subparsers = parser.add_subparsers(dest="command", help="choose command")
 
