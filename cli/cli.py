@@ -1,14 +1,17 @@
 import argparse
 import sys
+import os
+import glob
+import json
 
 # python -m cli.cli
 
 def create_parser():
-    """Create all parsers."""
+    #Create all parsers
     parser = argparse.ArgumentParser(description="CLI tool for model training interface", prog="")
     subparsers = parser.add_subparsers(dest="command", help="choose command")
 
-    train_parser = subparsers.add_parser("train", help="Run train/val with GridSearch and MLflow-experiment")
+    train_parser = subparsers.add_parser("train-base", help="Run train/val with GridSearch and MLflow-experiment")
     train_parser.add_argument(
         "--models", 
         nargs="+", 
@@ -24,7 +27,7 @@ def create_parser():
         help="Previous runs (standard: 5)"
     )
     
-    eval_parser = subparsers.add_parser("trainval", help="Train model on full train+val and evaluate on test set")
+    eval_parser = subparsers.add_parser("train-prod", help="Train model on full train+val and evaluate on test set")
     eval_parser.add_argument(
         "--model", 
         type=str, 
@@ -43,7 +46,8 @@ def main():
     print(" Welcome to the CLI model training interface!")
     print(" Commandlist:")
     print(" fetch - fetch the data from datase")
-    print(" train - train a model")
+    print(" train-base - train a model")
+    print(" train-prod - train a model")
     print(" runs - previous model training runs")
     print(" ")
     print(" help - get command list")
@@ -68,7 +72,7 @@ def main():
 
             args = parser.parse_args(parts)
 
-            if args.command == "train":
+            if args.command == "train-base":
                 print(f"Starting training for models: {args.models}...")
                 from training.train_test import run_training
                 run_training(selected_models=args.models)
@@ -103,59 +107,63 @@ def main():
                 except Exception as e:
                     print(f"Could not find MLflow history: {e}\n")
             
-            elif args.command == "eval":
-                import os
-                import glob
-                
-                baseline_dir = "artifacts/baseline"
-                if not os.path.exists(baseline_dir):
-                    print("no basemodels found.\n")
+            elif args.command == "train-prod":
+                baseline_dirs = sorted(glob.glob("artifacts/baseline_*"), reverse=True)
+                if not baseline_dirs:
+                    print("No immutable baseline directories (artifacts/baseline_*) found. Run 'train-base' first.\n")
                     continue
-                    
-                model_files = glob.glob(os.path.join(baseline_dir, "*_best.joblib"))
                 
+                latest_baseline = baseline_dirs[0]
+                print(f"Using baseline artifact directory: {latest_baseline}")
+                
+                model_files = glob.glob(os.path.join(latest_baseline, "*_best.joblib"))
                 if not model_files:
-                    print("no model files (*_best.joblib) found.\n")
+                    print("No model files (*_best.joblib) found in baseline directory.\n")
                     continue
                 
+                payload_path = os.path.join(latest_baseline, "telco_metrics_payload.json")
+                payload_data = {}
+                if os.path.exists(payload_path):
+                    try:
+                        with open(payload_path, "r", encoding="utf-8") as f:
+                            payload_data = json.load(f)
+                    except Exception:
+                        pass
+
                 available_models = []
-                print("\nAvaliable baseline models:")
-                print("-" * 30)
+                print("\nAvailable baseline models:")
+                print("-" * 40)
                 for i, path in enumerate(model_files, 1):
                     filename = os.path.basename(path)
-                    model_name = filename.replace("_best.joblib", "").capitalize()
-                    if "logistic" in model_name.lower():
-                        model_name = "LogisticRegression"
-                    elif "random" in model_name.lower():
-                        model_name = "RandomForest"
-                        
-                    available_models.append((i, model_name, path))
-                    print(f"[{i}] {model_name} (Fil: {filename})")
-                print("-" * 30)
+                    mkey = filename.replace("_best.joblib", "")
+                    disp_name = "LogisticRegression" if "logistic" in mkey else ("RandomForest" if "random" in mkey else mkey)
+                    available_models.append((i, disp_name, mkey, path))
+                    print(f"[{i}] {disp_name} (File: {filename})")
+                print("-" * 40)
                 
-                choice = input("Select the number of the ,odel you would like to train: ").strip()
+                choice = input("Select the number of the model you would like to train for production: ").strip()
                 
                 try:
                     selected_idx = int(choice) - 1
-                    chosen_model_name = available_models[selected_idx][1]
+                    disp_name, mkey, path = available_models[selected_idx], available_models[selected_idx], available_models[selected_idx]
                     
-                    print(f"Model: {chosen_model_name}. is in training")
+                    print(f"Model: {disp_name} selected. Starting production training...")
                     
                     from training.train_production import run_production_training
                     
-                    default_params = {}
-                    if chosen_model_name == "LogisticRegression":
-                        default_params = {'C': 10.0}
-                    elif chosen_model_name == "RandomForest":
-                        default_params = {'n_estimators': 50, 'max_depth': 10}
-                        
-                    run_production_training(model_name=chosen_model_name, custom_params=default_params)
+                    # Pull best params from baseline payload if present
+                    default_params = payload_data.get(mkey, {}).get("best_params", {})
+                    if not default_params:
+                        if disp_name == "LogisticRegression":
+                            default_params = {'C': 10.0}
+                        elif disp_name == "RandomForest":
+                            default_params = {'n_estimators': 50, 'max_depth': 10}
+                            
+                    run_production_training(model_name=disp_name, custom_params=default_params)
                     
                 except (ValueError, IndexError):
-                    print("Error.\n")
+                    print("Error: Invalid selection.\n")
             
-        except SystemExit:
-            continue
         except Exception as e:
             print(f"Error: {e}\n")
 
