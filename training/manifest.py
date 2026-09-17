@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 MANIFEST_FILE = "manifest.json"
-PAYLOAD_FILE = "telco_metrics_payload.json"
+PAYLOAD_FILE = "params_score_payload.json"
 SCHEMA_VERSION = 1
 TRACKED_LIBRARIES = ("scikit-learn", "pandas", "numpy", "joblib", "mlflow")
 
