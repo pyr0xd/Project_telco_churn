@@ -1,17 +1,21 @@
 import os
+from datetime import datetime
 import joblib
 import mlflow
+
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from sklearn.pipeline import Pipeline
 
-from dataset_load import X_train, preprocessor
+from .dataset_load import X_train, preprocessor
+from .export import export_artifacts
+from .manifest import model_key
 
 def run_clustering(selected_models=None):
     mlflow.end_run()
     mlflow.set_experiment("payment_clustering_k4")
 
-    # Fixed strictly to k=4 clusters
+    # Models constrained to k=4 clusters
     models_to_tune = {
         "KMeans": {
             "class": KMeans,
@@ -26,14 +30,19 @@ def run_clustering(selected_models=None):
     if selected_models:
         models_to_tune = {name: config for name, config in models_to_tune.items() if name in selected_models}
 
-    os.makedirs("artifacts/clustering", exist_ok=True)
+    models_fit = {}
+    metrics_map = {}
+
     X_preprocessed = preprocessor.fit_transform(X_train)
 
     for name, config in models_to_tune.items():
         with mlflow.start_run(run_name=f"{name}_Parent"):
+            mlflow.log_param("model_type", name)
+            
             best_score = -1.0
             best_model = None
             best_params = {}
+            best_calinski = 0.0
 
             for param_dict in config["params"]:
                 run_name = f"{name}_k4_{param_dict.get('linkage', 'default')}"
@@ -58,18 +67,44 @@ def run_clustering(selected_models=None):
                         best_score = sil
                         best_model = model
                         best_params = param_dict
+                        best_calinski = cal
 
+            # Assemble pipeline with fitted preprocessor and best cluster model
             best_pipeline = Pipeline([
                 ('preprocessing', preprocessor),
                 ('model', best_model)
             ])
 
-            model_path = f"artifacts/clustering/{name.lower()}_k4_best.joblib"
-            joblib.dump(best_pipeline, model_path)
-            mlflow.log_artifact(model_path)
-            mlflow.log_metric("best_silhouette_score", best_score)
+            # Save temporary artifact for MLflow run tracking
+            os.makedirs("artifacts/_temp_mlflow", exist_ok=True)
+            temp_path = f"artifacts/_temp_mlflow/{name.lower()}_best.joblib"
+            joblib.dump(best_pipeline, temp_path)
+            mlflow.log_artifact(temp_path)
 
-            print(f"--> Saved Best {name} Model (k=4) | Params: {best_params} | Silhouette: {best_score:.4f}\n")
+            # Store pipeline and metrics using project manifest keys
+            models_fit[name] = best_pipeline
+            metrics_map[model_key(name)] = {
+                "silhouette_score": float(best_score),
+                "calinski_harabasz_score": float(best_calinski),
+                "best_params": best_params
+            }
+
+            mlflow.log_metric("best_silhouette_score", best_score)
+            print(f"Model: [{name}] | Best Silhouette: {best_score:.4f} | Calinski-Harabasz: {best_calinski:.2f}\n")
+
+    # Export fitted models, evaluation payload, and manifest.json
+    if models_fit:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        version_dir = f"artifacts/cluster_{timestamp}"
+
+        saved_path = export_artifacts(
+            models_fit=models_fit,
+            metrics_map=metrics_map,
+            out_dir=version_dir,
+            artifact_version=f"cluster_{timestamp}",
+            notes="K-Means and Agglomerative k=4 payment method clustering models",
+        )
+        print(f"Models and manifest exported to: {saved_path}")
 
 if __name__ == "__main__":
     run_clustering()

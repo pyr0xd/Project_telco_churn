@@ -1,0 +1,19 @@
+{
+    "kmeans": {
+        "silhouette_score": 0.20500890099349836,
+        "calinski_harabasz_score": 1076.2507032883252,
+        "best_params": {
+            "n_clusters": 4,
+            "random_state": 42,
+            "n_init": 10
+        }
+    },
+    "agglomerative": {
+        "silhouette_score": 0.21298278809786192,
+        "calinski_harabasz_score": 933.9867861637472,
+        "best_params": {
+            "n_clusters": 4,
+            "linkage": "average"
+        }
+    }
+}
