@@ -1,3 +1,8 @@
+import os
+import glob
+from datetime import datetime
+import joblib
+import numpy as np
 import mlflow
 import mlflow.sklearn
 from sklearn.linear_model import LogisticRegression
@@ -5,16 +10,49 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.pipeline import Pipeline
-import joblib
-import os
-from datetime import datetime
 
-from .dataset_load import X_train, y_train, X_val, y_val, preprocessor
+from .dataset_load import get_data_splits
 from .export import export_artifacts
 from .manifest import model_key
 
+
+def get_cluster_distances(X_raw):
+    """Hämtar klusteravstånd om klustring finns, annars returnerar None."""
+    cluster_dirs = sorted(glob.glob("artifacts/cluster_*"), reverse=True)
+    if not cluster_dirs:
+        return None
+    cluster_files = glob.glob(os.path.join(cluster_dirs[0], "*.joblib"))
+    if not cluster_files:
+        return None
+    try:
+        cluster_pipe = joblib.load(cluster_files[0])
+        if 'preprocessing' in cluster_pipe.named_steps and 'model' in cluster_pipe.named_steps:
+            X_prep_c = cluster_pipe.named_steps['preprocessing'].transform(X_raw)
+            return cluster_pipe.named_steps['model'].transform(X_prep_c)
+    except Exception:
+        return None
+    return None
+
+
 def run_training(selected_models=None):
     mlflow.set_experiment("basemodel_test")
+
+    X_train, y_train, X_val, y_val, X_test, y_test, preprocessor = get_data_splits()
+
+    X_train_prep = preprocessor.fit_transform(X_train)
+    X_val_prep = preprocessor.transform(X_val)
+
+    train_cluster_dist = get_cluster_distances(X_train)
+    val_cluster_dist = get_cluster_distances(X_val)
+
+    if train_cluster_dist is not None and val_cluster_dist is not None:
+        print("Kluster-features hittade och integreras i träningsdatan.")
+        X_train_final = np.hstack([X_train_prep, train_cluster_dist])
+        X_val_final = np.hstack([X_val_prep, val_cluster_dist])
+    else:
+        print("Inga kluster-features hittade, kör enbart på standardpreprocessor.")
+        X_train_final = X_train_prep
+        X_val_final = X_val_prep
 
     models_to_tune = {
         "LogisticRegression": {
@@ -41,11 +79,9 @@ def run_training(selected_models=None):
 
     for name, config in models_to_tune.items():
         with mlflow.start_run(run_name=name):
-            
             mlflow.log_param("model_type", name)
             
             pipeline = Pipeline([
-                ('preprocessing', preprocessor),
                 ('model', config['model'])
             ])
 
@@ -58,7 +94,7 @@ def run_training(selected_models=None):
             )
             
             print(f"Training and tuning {name}...")
-            grid_search.fit(X_train, y_train)
+            grid_search.fit(X_train_final, y_train)
             
             best_model = grid_search.best_estimator_
             best_params = grid_search.best_params_
@@ -66,13 +102,12 @@ def run_training(selected_models=None):
             print(f"[{name}] Best params: {best_params}")
             
             clean_params = {}
-            
             for param_name, param_value in best_params.items():
                 clean_name = param_name.replace("model__", "")
                 mlflow.log_param(clean_name, param_value)
                 clean_params[clean_name] = param_value
 
-            pred = best_model.predict(X_val)
+            pred = best_model.predict(X_val_final)
             acc = accuracy_score(y_val, pred)
             f1 = f1_score(y_val, pred)
             
@@ -102,7 +137,7 @@ def run_training(selected_models=None):
             metrics_map=metrics_map,
             out_dir=version_dir,
             artifact_version=f"baseline_{timestamp}",
-            notes="GridSearch baseline training on train/val split",
+            notes="GridSearch baseline training with cluster feature enrichment",
         )
         print(f"models and manifest exported to: {saved_path}")
 

@@ -2,99 +2,66 @@ import os
 from datetime import datetime
 import joblib
 import mlflow
+import pandas as pd
 
-from sklearn.cluster import KMeans, AgglomerativeClustering
+from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, calinski_harabasz_score
 from sklearn.pipeline import Pipeline
 
-from .dataset_load import X_train, preprocessor
+from .dataset_load import fetch_and_clean_data, get_preprocessor
 from .export import export_artifacts
 from .manifest import model_key
 
-def run_clustering(selected_models=None):
+def run_clustering():
     mlflow.end_run()
     mlflow.set_experiment("payment_clustering_k4")
 
-    # Models constrained to k=4 clusters
-    models_to_tune = {
-        "KMeans": {
-            "class": KMeans,
-            "params": [{"n_clusters": 4, "random_state": 42, "n_init": 10}]
-        },
-        "Agglomerative": {
-            "class": AgglomerativeClustering,
-            "params": [{"n_clusters": 4, "linkage": link} for link in ["ward", "complete", "average"]]
-        }
-    }
+    df = fetch_and_clean_data()
+    y = df['Churn'] if 'Churn' in df.columns else None
+    X = df.drop(columns=['Churn'], errors='ignore')
 
-    if selected_models:
-        models_to_tune = {name: config for name, config in models_to_tune.items() if name in selected_models}
+    preprocessor = get_preprocessor(X.columns)
+    clustering_pipeline = Pipeline([
+        ('preprocessing', preprocessor),
+        ('model', KMeans(n_clusters=4, random_state=42, n_init=10))
+    ])
 
-    models_fit = {}
-    metrics_map = {}
+    with mlflow.start_run(run_name="KMeans_k4_Pipeline"):
+        mlflow.log_param("model_type", "KMeans")
+        mlflow.log_param("n_clusters", 4)
 
-    X_preprocessed = preprocessor.fit_transform(X_train)
+        clustering_pipeline.fit(X)
+        
+        X_prep = clustering_pipeline.named_steps['preprocessing'].transform(X)
+        labels = clustering_pipeline.named_steps['model'].labels_
 
-    for name, config in models_to_tune.items():
-        with mlflow.start_run(run_name=f"{name}_Parent"):
-            mlflow.log_param("model_type", name)
-            
-            best_score = -1.0
-            best_model = None
-            best_params = {}
-            best_calinski = 0.0
+        sil = silhouette_score(X_prep, labels)
+        cal = calinski_harabasz_score(X_prep, labels)
 
-            for param_dict in config["params"]:
-                run_name = f"{name}_k4_{param_dict.get('linkage', 'default')}"
+        cluster_churn = {}
+        if y is not None:
+            cluster_churn = pd.Series(y.values).groupby(labels).mean().to_dict()
+            print(f"Churn rate per cluster: {cluster_churn}")
 
-                with mlflow.start_run(run_name=run_name, nested=True):
-                    mlflow.log_param("model_type", name)
-                    for p_k, p_v in param_dict.items():
-                        mlflow.log_param(p_k, p_v)
+        mlflow.log_metric("silhouette_score", sil)
+        mlflow.log_metric("calinski_harabasz_score", cal)
 
-                    model = config["class"](**param_dict)
-                    labels = model.fit_predict(X_preprocessed)
+        os.makedirs("artifacts/_temp_mlflow", exist_ok=True)
+        temp_path = "artifacts/_temp_mlflow/kmeans_best.joblib"
+        joblib.dump(clustering_pipeline, temp_path)
+        mlflow.log_artifact(temp_path)
 
-                    sil = silhouette_score(X_preprocessed, labels)
-                    cal = calinski_harabasz_score(X_preprocessed, labels)
-
-                    mlflow.log_metric("silhouette_score", sil)
-                    mlflow.log_metric("calinski_harabasz_score", cal)
-
-                    print(f"[{run_name}] Silhouette: {sil:.4f} | Calinski-Harabasz: {cal:.2f}")
-
-                    if sil > best_score:
-                        best_score = sil
-                        best_model = model
-                        best_params = param_dict
-                        best_calinski = cal
-
-            # Assemble pipeline with fitted preprocessor and best cluster model
-            best_pipeline = Pipeline([
-                ('preprocessing', preprocessor),
-                ('model', best_model)
-            ])
-
-            # Save temporary artifact for MLflow run tracking
-            os.makedirs("artifacts/_temp_mlflow", exist_ok=True)
-            temp_path = f"artifacts/_temp_mlflow/{name.lower()}_best.joblib"
-            joblib.dump(best_pipeline, temp_path)
-            mlflow.log_artifact(temp_path)
-
-            # Store pipeline and metrics using project manifest keys
-            models_fit[name] = best_pipeline
-            metrics_map[model_key(name)] = {
-                "silhouette_score": float(best_score),
-                "calinski_harabasz_score": float(best_calinski),
-                "best_params": best_params
+        models_fit = {"KMeans": clustering_pipeline}
+        metrics_map = {
+            model_key("KMeans"): {
+                "silhouette_score": float(sil),
+                "calinski_harabasz_score": float(cal),
+                "cluster_churn_rates": {str(k): float(v) for k, v in cluster_churn.items()},
+                "best_params": {"n_clusters": 4}
             }
+        }
 
-            mlflow.log_metric("best_silhouette_score", best_score)
-            print(f"Model: [{name}] | Best Silhouette: {best_score:.4f} | Calinski-Harabasz: {best_calinski:.2f}\n")
-
-    # Export fitted models, evaluation payload, and manifest.json
-    if models_fit:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         version_dir = f"artifacts/cluster_{timestamp}"
 
         saved_path = export_artifacts(
@@ -102,9 +69,9 @@ def run_clustering(selected_models=None):
             metrics_map=metrics_map,
             out_dir=version_dir,
             artifact_version=f"cluster_{timestamp}",
-            notes="K-Means and Agglomerative k=4 payment method clustering models",
+            notes="K-Means k=4 clustering pipeline",
         )
-        print(f"Models and manifest exported to: {saved_path}")
+        print(f"Cluster model and manifest exported to: {saved_path}")
 
 if __name__ == "__main__":
     run_clustering()
