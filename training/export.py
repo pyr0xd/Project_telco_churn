@@ -11,6 +11,7 @@ from .manifest import (
     ArtifactManifest,
     TRACKED_LIBRARIES,
     model_key,
+    model_filename,
 )
 
 def _get_lib_version(lib: str) -> str:
@@ -20,7 +21,7 @@ def _get_lib_version(lib: str) -> str:
         return "unknown"
 
 
-def export_telco_artifacts(
+def export_artifacts(
     models_fit: dict[str, Any],
     metrics_map: dict[str, dict[str, Any]],
     out_dir: Path | str,
@@ -34,13 +35,13 @@ def export_telco_artifacts(
     models_map = {}
     for name, model_obj in models_fit.items():
         mkey = model_key(name)
-        fname = f"{mkey}_best.joblib"
+        fname = model_filename(name)        
         with (out_dir / fname).open("wb") as f:
             joblib.dump(model_obj, f)
         models_map[mkey] = fname
 
     (out_dir / PAYLOAD_FILE).write_text(json.dumps(metrics_map, indent=4), encoding="utf-8")
-
+    
     lib_versions = {lib: _get_lib_version(lib) for lib in TRACKED_LIBRARIES}
 
     manifest = ArtifactManifest(

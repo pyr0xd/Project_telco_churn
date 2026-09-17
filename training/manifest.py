@@ -15,6 +15,9 @@ def model_key(model_name: str) -> str:
     """Registry key for a model name: 'LogisticRegression' -> 'logisticregression'."""
     return model_name.strip().lower()
 
+def model_filename(name: str) -> str:
+    return f"{model_key(name)}_best.joblib"
+
 
 class ModelEvaluationPayload(BaseModel):
     accuracy: float
@@ -40,7 +43,4 @@ def load_manifest(artifact_dir: Path | str) -> ArtifactManifest:
 
 
 def load_payload(artifact_dir: Path | str, manifest: ArtifactManifest) -> dict[str, Any]:
-    raw = json.loads(
-        (Path(artifact_dir) / manifest.payload_file).read_text(encoding="utf-8")
-    )
-    return raw
+    return json.loads((Path(artifact_dir) / manifest.payload_file).read_text(encoding="utf-8"))
