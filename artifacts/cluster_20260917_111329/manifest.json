@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "artifact_version": "cluster_20260917_111329",
+  "created_at": "2026-09-17T09:13:29.190692Z",
+  "library_versions": {
+    "scikit-learn": "1.9.1",
+    "pandas": "3.0.5",
+    "numpy": "2.5.3",
+    "joblib": "1.6.0",
+    "mlflow": "3.16.0"
+  },
+  "payload_file": "params_score_payload.json",
+  "models": {
+    "kmeans": "kmeans_best.joblib",
+    "agglomerative": "agglomerative_best.joblib"
+  },
+  "diagnostics": {},
+  "notes": "K-Means and Agglomerative k=4 payment method clustering models"
+}
