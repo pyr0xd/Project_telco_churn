@@ -67,7 +67,7 @@ preprocessor = ColumnTransformer([
     ('cat', categorical_pipeline, categorical_cols)
 ])
 
-CLEANED_DATA_PATH = Path('artifacts/processed/cleaned_telco.pkl')
+CLEANED_DATA_PATH = Path('artifacts/processed/cleaned_data.pkl')
 
 if CLEANED_DATA_PATH.exists():
     df = pd.read_pickle(CLEANED_DATA_PATH)
