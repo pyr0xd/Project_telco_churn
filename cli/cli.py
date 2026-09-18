@@ -4,6 +4,8 @@ import os
 import glob
 import json
 
+from training.mlflow_setup import init_mlflow
+
 # python -m cli.cli
 
 def create_parser():
@@ -43,6 +45,7 @@ def create_parser():
     return parser
 
 def main():
+    init_mlflow()
     parser = create_parser()
     print("================================================================")
     print(" Welcome to the CLI model training interface!")
