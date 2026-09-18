@@ -14,8 +14,13 @@ from .manifest import model_key
 
 def run_clustering():
     mlflow.end_run()
-    mlflow.set_experiment("payment_clustering_k4")
 
+    experiment_name = "payment_clustering_k4"
+    client = mlflow.tracking.MlflowClient()
+    experiment = client.get_experiment_by_name(experiment_name)
+    if experiment is None:
+        client.create_experiment(experiment_name, artifact_location="./mlruns")
+    mlflow.set_experiment(experiment_name)
     df = fetch_and_clean_data()
     y = df['Churn'] if 'Churn' in df.columns else None
     X = df.drop(columns=['Churn'], errors='ignore')
@@ -75,3 +80,4 @@ def run_clustering():
 
 if __name__ == "__main__":
     run_clustering()
+    
