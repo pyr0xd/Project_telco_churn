@@ -36,9 +36,12 @@ with col2:
     internet_service = st.selectbox("Internet Service", ["DSL", "Fiber optic", "No"])
     online_security = st.selectbox("Online Security", ["No", "Yes", "No internet service"])
     online_backup = st.selectbox("Online Backup", ["No", "Yes", "No internet service"])
+    device_protection = st.selectbox("Device Protection", ["No", "Yes", "No internet service"])
 
 with col3:
     tech_support = st.selectbox("Tech Support", ["No", "Yes", "No internet service"])
+    streaming_tv = st.selectbox("Streaming TV", ["No", "Yes", "No internet service"])
+    streaming_movies = st.selectbox("Streaming Movies", ["No", "Yes", "No internet service"])
     contract = st.selectbox("Contract", ["Month-to-month", "One year", "Two year"])
     paperless_billing = st.selectbox("Paperless Billing", ["Yes", "No"])
     payment_method = st.selectbox("Payment Method", [
@@ -59,7 +62,10 @@ input_data = {
     "InternetService": internet_service,
     "OnlineSecurity": online_security,
     "OnlineBackup": online_backup,
+    "DeviceProtection": device_protection,
     "TechSupport": tech_support,
+    "StreamingTV": streaming_tv,
+    "StreamingMovies": streaming_movies,
     "Contract": contract,
     "PaperlessBilling": paperless_billing,
     "PaymentMethod": payment_method,

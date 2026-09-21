@@ -9,7 +9,7 @@ from training.mlflow_setup import init_mlflow
 # python -m cli.cli
 
 def create_parser():
-    #Create all parsers
+    # Create all parsers
     parser = argparse.ArgumentParser(description="CLI tool for model training interface", prog="")
     subparsers = parser.add_subparsers(dest="command", help="choose command")
 
@@ -32,6 +32,16 @@ def create_parser():
         help="Which model to train for production and evaluate"
     )
 
+    # Lade till train-final parsern här (utan %-tecken i help!)
+    final_parser = subparsers.add_parser("train-final", help="Train final model on full dataset and export to serving store")
+    final_parser.add_argument(
+        "--model", 
+        type=str, 
+        required=False, 
+        choices=["LogisticRegression", "RandomForest"],
+        help="Which model to train for the final dataset"
+    )
+
     runs_parser = subparsers.add_parser("runs", help="Previous models and params MLflow")
     runs_parser.add_argument(
         "--limit", 
@@ -50,14 +60,15 @@ def main():
     print("================================================================")
     print(" Welcome to the CLI model training interface!")
     print(" Commandlist:")
-    print(" fetch      - fetch and clean data from database")
-    print(" cluster    - run K-Means k=4 clustering pipeline")
-    print(" train-base - train baseline models (GridSearch + cluster features)")
-    print(" train-prod - train production model on test set from baseline")
-    print(" runs       - previous model training runs (MLflow)")
+    print(" fetch       - fetch and clean data from database")
+    print(" cluster     - run K-Means k=4 clustering pipeline")
+    print(" train-base  - train baseline models (GridSearch + cluster features)")
+    print(" train-prod  - train production model on test set from baseline")
+    print(" train-final - train final model on full dataset & sync serving")
+    print(" runs        - previous model training runs (MLflow)")
     print(" ")
-    print(" help       - get command list")
-    print(" exit       - exit CLI")
+    print(" help        - get command list")
+    print(" exit        - exit CLI")
     print("================================================================")
 
     while True:
@@ -154,9 +165,53 @@ def main():
                     
                 except (ValueError, IndexError):
                     print("Error: Invalid selection.\n")
+
+            # Lade till train-final blocket här
+            elif args.command == "train-final":
+                baseline_dirs = sorted(glob.glob("artifacts/baseline_*"), reverse=True)
+                latest_baseline = baseline_dirs[0] if baseline_dirs else None
+                
+                payload_data = {}
+                if latest_baseline:
+                    payload_path = os.path.join(latest_baseline, "telco_metrics_payload.json")
+                    if os.path.exists(payload_path):
+                        try:
+                            with open(payload_path, "r", encoding="utf-8") as f:
+                                payload_data = json.load(f)
+                        except Exception:
+                            pass
+
+                available_models = [
+                    (1, "LogisticRegression", "logisticregression"),
+                    (2, "RandomForest", "randomforest")
+                ]
+                print("\nAvailable models for final full dataset training:")
+                print("-" * 40)
+                for i, disp_name, _ in available_models:
+                    print(f"[{i}] {disp_name}")
+                print("-" * 40)
+                
+                choice = input("Select model number for final training: ").strip()
+                try:
+                    selected_idx = int(choice) - 1
+                    _, disp_name, mkey = available_models[selected_idx]
+                    
+                    print(f"Model: {disp_name} selected. Starting final training...")
+                    from training.train_final import run_final_training
+                    
+                    default_params = payload_data.get(mkey, {}).get("best_params", {})
+                    if not default_params:
+                        if disp_name == "LogisticRegression":
+                            default_params = {'C': 10.0}
+                        elif disp_name == "RandomForest":
+                            default_params = {'n_estimators': 50, 'max_depth': 10}
+                            
+                    run_final_training(model_name=disp_name, custom_params=default_params)
+                except (ValueError, IndexError):
+                    print("Error: Invalid selection.\n")
             
             elif args.command == "runs":
-                print("Fetching MLflow history...")
+                print("fetching MLflow history...")
                 try:
                     import mlflow
                     runs = mlflow.search_runs(experiment_names=["basemodel_test"])

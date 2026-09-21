@@ -16,11 +16,12 @@ def predict_churn(customer: dict):
     if 'TotalCharges' in input_df.columns:
         input_df['TotalCharges'] = pd.to_numeric(input_df['TotalCharges'], errors='coerce')
 
-    # Using the model from the registry instead of a local variable
+    # Using the model from the registry
     prediction = registry.model.predict(input_df)[0]
     probability = registry.model.predict_proba(input_df)[0][1]
 
+    # Uppdaterat för att matcha app.py exakt!
     return {
-        "churn_prediction": "Yes" if prediction == 1 else "No",
-        "churn_probability": float(probability)
+        "prediction": int(prediction),      # Skickar 1 eller 0
+        "probability": float(probability)   # Skickar decimalvärdet
     }
